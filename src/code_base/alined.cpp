@@ -21,10 +21,11 @@
 #include "iostream"
 #include "unsupported/Eigen/MatrixFunctions"
 #include "external/tic_toc.hpp"
+#include "alined/kalman_filter.hpp"
 
 
 
-Alined::Alined(unsigned char config)
+Alined::Alined(int32_t config)
   :loss_scale_(1.0)
 {
   std::cout << "ALineD Module\n\n";
@@ -32,17 +33,36 @@ Alined::Alined(unsigned char config)
   std::cout << "This software has been tested under Eigen v. 3.2.0\n\n";
 
   method_ = config & (AL_LINE_DLT|AL_COMBINED_LINES);
-  solver_ = config & (AL_LEAST_SQUARES|AL_LEVENBERG_MARQUARDT);
   iterative_ = config & (AL_NO_REFINE|AL_USE_REFINE);
 
   if((config & AL_HUBER_LOSS) == AL_HUBER_LOSS){
     lossFunc_ = std::bind(&Alined::huberLoss, this, std::placeholders::_1);
+    std::cout <<"Loss function: Huber Loss\n\n";
   }
   else if((config & AL_CAUCHY_LOSS) == AL_CAUCHY_LOSS){
     lossFunc_ = std::bind(&Alined::cauchyLoss, this, std::placeholders::_1);
+    std::cout <<"Loss function: Cauchy Loss\n\n";
+  }
+  else if((config & AL_NO_LOSS) == AL_NO_LOSS){
+     lossFunc_ = std::bind(&Alined::noLoss, this, std::placeholders::_1);
+     std::cout <<"Loss function: No loss set\n\n";
   }
   else{
-     lossFunc_ = std::bind(&Alined::huberLoss, this, std::placeholders::_1);
+    lossFunc_ = std::bind(&Alined::noLoss, this, std::placeholders::_1);
+    std::cout <<"Loss wasn't defined... Set to no loss.\n\n";
+  }
+
+  if((config & AL_GAUSS_NEWTON) == AL_GAUSS_NEWTON){
+    refineFunc_ = std::bind(&Alined::gaussNewton, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
+    std::cout <<"Iterative Solver: Gauss-Newton\n\n";
+  }
+  else if((config & AL_LEVENBERG_MARQUARDT) == AL_LEVENBERG_MARQUARDT){
+    refineFunc_ = std::bind(&Alined::levenbergMarquardt, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
+    std::cout <<"Iterative Solver: Levenberg-Marquardt\n\n";
+  }
+  else{
+    refineFunc_ = std::bind(&Alined::levenbergMarquardt, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
+    std::cout <<"Iterative Solver wasn't defined... Set to no Levenberg-Marquardt.\n\n";
   }
 
 }
@@ -53,8 +73,6 @@ Alined::~Alined(){
 
 Eigen::Matrix4d Alined::poseFromLines(Eigen::Matrix<double,3,Eigen::Dynamic> x_c, Eigen::Matrix<double,4, Eigen::Dynamic> X_w){
 
-
-  tic("nsec", "Pose Estimation:");
 
   //Output matrix
   Eigen::Matrix4d tf;
@@ -519,18 +537,18 @@ Eigen::Matrix4d Alined::poseFromLines(Eigen::Matrix<double,3,Eigen::Dynamic> x_c
 
   if(iterative_ == AL_USE_REFINE){
 
-    Eigen::MatrixXd w = Eigen::MatrixXd::Ones(1,l_c.cols());
-    tf = refineIteratively(tf,X_w_orig,l_c_orig,w);
+    Eigen::MatrixXd w = Eigen::MatrixXd::Ones(1,l_c.cols());    
+    tf = refineFunc_(tf, X_w_orig, l_c_orig, w);
   }
 
-  toc();
+
   return tf;
 
 
 }
 
 
-Eigen::Matrix4d Alined::poseFromLinesIterative(Eigen::Matrix4d pose ,Eigen::Matrix<double,3,Eigen::Dynamic> x_c, Eigen::Matrix<double,4,Eigen::Dynamic> X_w){
+Eigen::Matrix4d Alined::poseFromLinesIterative(const Eigen::Matrix4d &pose , const Eigen::Matrix<double,3,Eigen::Dynamic> &x_c, const Eigen::Matrix<double,4,Eigen::Dynamic> &X_w){
 
   //Output matrix
   Eigen::Matrix4d tf;
@@ -549,8 +567,8 @@ Eigen::Matrix4d Alined::poseFromLinesIterative(Eigen::Matrix4d pose ,Eigen::Matr
 
   int nlines = (int)(X_w.cols()/2);
 
-  if(nlines < 4){
-    std::cout << "Not enough lines to extract pose from. Required: "<< 4 <<" Provided: "<< nlines <<"\n";
+  if(nlines < 1){
+    std::cout << "Not enough lines to extract pose from. Required: "<< 1 <<" Provided: "<< nlines <<"\n";
     throw std::exception();
   }
 
@@ -571,21 +589,16 @@ Eigen::Matrix4d Alined::poseFromLinesIterative(Eigen::Matrix4d pose ,Eigen::Matr
     l_c.block<3,1>(0,i) = x_1.block<3,1>(0,i).cross(x_2.block<3,1>(0,i));
 
     // Weight the iterative algorithm by inverse line length
-   // w(0,i) = 1/(((x_1.block<3,1>(0,i)-x_2.block<3,1>(0,i)).norm())*((X_1.block<3,1>(0,i)-X_2.block<3,1>(0,i)).norm()));
+    w(0,i) = (((x_1.block<3,1>(0,i)-x_2.block<3,1>(0,i)).norm())*((X_1.block<3,1>(0,i)-X_2.block<3,1>(0,i)).norm()));
+
   }
 
-  //std::cout << "W = \n\n"<< w<<"\n\n";
-  if(solver_ == AL_LEAST_SQUARES){
-    return refineIteratively(pose, X_w, l_c, w);
-  }
-  else{
-    return levenbergMarquardt(pose, X_w, l_c, w);
-  }
+  return refineFunc_(pose, X_w, l_c, w);
 
 }
 
 
-Eigen::MatrixXd Alined::kron(Eigen::MatrixXd m1, Eigen::MatrixXd m2){
+Eigen::MatrixXd Alined::kron(const Eigen::MatrixXd &m1, const Eigen::MatrixXd &m2){
 
   Eigen::MatrixXd result(m1.rows()*m2.rows(), m1.cols()*m2.cols());
 
@@ -651,19 +664,21 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
 
  }
 
- Eigen::Matrix4d Alined::refineIteratively(const Eigen::Matrix4d &tf, Eigen::Matrix<double,4, Eigen::Dynamic> X_w, Eigen::Matrix<double, 3, Eigen::Dynamic> l_c, Eigen::Matrix<double,1,Eigen::Dynamic> w){
+ Eigen::Matrix4d Alined::gaussNewton(const Eigen::Matrix4d &tf, const Eigen::Matrix<double,4, Eigen::Dynamic> &X_w, const Eigen::Matrix<double, 3, Eigen::Dynamic> &l_c, const Eigen::Matrix<double,1,Eigen::Dynamic> &w){
 
    /*
     * NOTE: This is a second order method
     * and therefore not guaranteed to converge.
-    *
     */
 
-   Eigen::Matrix<double, 6,6> A;
+   int nlines = l_c.cols();
+
+    Eigen::Matrix<double, 6,6> A;
     Eigen::Matrix<double,6,1> f;
     Eigen::Matrix3d C,D,F,R;
     Eigen::Vector3d c,d,b1,b2,T;
 
+    // Initialize prior
     R = tf.block<3,3>(0,0);
     T = tf.block<3,1>(0,3);
 
@@ -678,12 +693,8 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
 
 
     // Set initial cost
-    Eigen::MatrixXd loss;
-    loss.setOnes(3,l_c.cols());
-    Eigen::MatrixXd cost_i;
-    cost_i.setOnes(3,l_c.cols());
-
-
+    Eigen::MatrixXd loss = Eigen::MatrixXd::Ones(3,nlines);
+    Eigen::MatrixXd cost_i = Eigen::MatrixXd::Zero(1,nlines);
 
 
     while(!converged && !(iter == AL_MAX_ITER)){
@@ -692,7 +703,7 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
       X_1 = R*X_1_orig.block(0,0,3,X_1_orig.cols()).eval();
       X_2 = R*X_2_orig.block(0,0,3,X_2_orig.cols()).eval();
 
-      for(int i = 0; i < l_c.cols();++i){
+      for(int i = 0; i < nlines;++i){
 
         Eigen::Vector3d N = l_c.block<3,1>(0,i).normalized();
         double cost_sq_1 = w(0,i)*N.transpose()*(X_1.block<3,1>(0,i)+T);
@@ -715,7 +726,7 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
 
 
 
-      for(int i = 0; i < l_c.cols();i++){
+      for(int i = 0; i < nlines; ++i){
 
         Eigen::Vector3d N = l_c.block<3,1>(0,i).normalized();
 
@@ -755,12 +766,13 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
       Eigen::Quaterniond dr(Eigen::AngleAxisd((dw.norm()), dw.normalized()));
 
       Eigen::Matrix3d dR = dr.toRotationMatrix();
+      Eigen::Quaterniond rotmat(R);
 
+      R = (dr*rotmat).toRotationMatrix();
 
-      R = dR*R.eval();
       T = x.block<3,1>(0,0) + T.eval();
 
-      if(dw.norm()<0.01){
+      if(x.norm()<0.01){
         converged = true;
       }
 
@@ -775,26 +787,26 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
 
     return tf_out;
 
-
-
-
  }
 
 
 
- Eigen::Matrix4d Alined::levenbergMarquardt(const Eigen::Matrix4d &tf, Eigen::Matrix<double,4, Eigen::Dynamic> X_w, Eigen::Matrix<double, 3, Eigen::Dynamic> l_c, Eigen::Matrix<double,1,Eigen::Dynamic> w){
+ Eigen::Matrix4d Alined::levenbergMarquardt(const Eigen::Matrix4d &tf, const Eigen::Matrix<double,4, Eigen::Dynamic> &X_w, const Eigen::Matrix<double, 3, Eigen::Dynamic> &l_c, const Eigen::Matrix<double,1,Eigen::Dynamic> &w){
 
+
+  int nlines = l_c.cols();
 
   Eigen::Matrix<double, 6,6> A;
   Eigen::Matrix<double,6,1> f;
   Eigen::Matrix3d C,D,F,R;
   Eigen::Vector3d c,d,b1,b2,T;
 
+  // Initialize from prior
   R = tf.block<3,3>(0,0);
   T = tf.block<3,1>(0,3);
 
-  Eigen::Matrix<double, 4, Eigen::Dynamic> X_1_orig = Eigen::MatrixXd::Map(X_w.data(), 8, X_w.cols()/2).topRows(4);
-  Eigen::Matrix<double, 4, Eigen::Dynamic> X_2_orig = Eigen::MatrixXd::Map(X_w.data(), 8, X_w.cols()/2).bottomRows(4);
+  Eigen::Matrix<double, 4, Eigen::Dynamic> X_1_orig = Eigen::MatrixXd::Map(X_w.data(), 8, nlines).topRows(4);
+  Eigen::Matrix<double, 4, Eigen::Dynamic> X_2_orig = Eigen::MatrixXd::Map(X_w.data(), 8, nlines).bottomRows(4);
 
   Eigen::Matrix<double, 3, Eigen::Dynamic> X_1_start, X_2_start,X_1,X_2;
 
@@ -803,7 +815,7 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
 
   // Initial variables, state is set by default
   bool converged = false;
-  int iter = 0;
+  unsigned int iter = 0;
   double damping = 0.5;
   double nu = 2.0;
   double rho = -1.0;
@@ -817,12 +829,11 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
   double cost_old = 0.0;
 
   // Set loss values
-  Eigen::MatrixXd loss;
-  Eigen::MatrixXd cost_i;
-  loss.setOnes(3,l_c.cols());
-  cost_i.setZero(1,l_c.cols());
+  Eigen::MatrixXd loss = Eigen::MatrixXd::Ones(3, nlines);
+  Eigen::MatrixXd cost_i = Eigen::MatrixXd::Zero(1,nlines);
 
-  for(int i = 0; i < l_c.cols();++i){
+
+  for(int i = 0; i < nlines;++i){
 
     Eigen::Vector3d N = l_c.block<3,1>(0,i).normalized();
     double cost_sq_1 = w(0,i)*N.transpose()*(X_1_start.block<3,1>(0,i)+T);
@@ -830,6 +841,7 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
     cost_i(0,i) = cost_sq_1*cost_sq_1 + cost_sq_2*cost_sq_2;
     loss.block<3,1>(0,i) = lossFunc_(cost_i(0,i));
     double loss_f_o = loss(0,i);
+   // std::cout << "cost:\n\n"<<cost_i(0,i)<<"\n";
 
     cost_old = cost_old + loss_f_o;
   }
@@ -854,10 +866,9 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
     X_2 = R*X_2_orig.block(0,0,3,X_2_orig.cols()).eval();
 
     // Stack the Jacobians and multiply with loss
-    for(int i = 0; i < l_c.cols();i++){
+    for(int i = 0; i < nlines;++i){
 
       Eigen::Vector3d N = l_c.block<3,1>(0,i).normalized();
-   //   std::cout << "Loss: "<< loss(2,i)*cost_i(0,i) + 0.5*loss(1,i)<<"\n";
 
       b1 = X_1.block<3,1>(0,i).cross(N);
       b2 = X_2.block<3,1>(0,i).cross(N);
@@ -886,7 +897,12 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
 
     A.block<3,3>(3,0) = A.block<3,3>(0,3).eval().transpose();
 
-    //std::cout << "blubb\n";
+
+    if(iter == 0){
+      // According to "DAMPING PARAMETER IN MARQUARDT’S METHOD", by H.Nielsen
+      damping = (A.diagonal().maxCoeff())*0.01;
+    }
+
 
     while(!(rho > 0 || converged)){
 
@@ -894,7 +910,7 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
       Eigen::MatrixXd identity = Eigen::MatrixXd::Zero(6,6);
       identity.diagonal() = Eigen::VectorXd::Ones(6)*damping;
 
-     // std::cout << "damp = \n\n" << identity <<"\n\n";
+
 
       // Solve (A+mu*I)=f
       Eigen::ColPivHouseholderQR<Eigen::Matrix<double,6,6>> problem(A+identity);
@@ -902,17 +918,18 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
 
       Eigen::Vector3d dw = x.block<3,1>(3,0);
 
+
       //Check early termination
-      if(dw.norm()<0.01){
+      if(x.norm()<0.005){
         converged = true;
       }
       else{
 
         Eigen::Quaterniond dr(Eigen::AngleAxisd((dw.norm()), dw.normalized()));
-        Eigen::Matrix3d dR = dr.toRotationMatrix();
+        Eigen::Quaterniond rotmat(R);
 
         // Set temporary update
-        Eigen::Matrix3d tmp_R = dR*R;
+        Eigen::Matrix3d tmp_R = (dr*rotmat).toRotationMatrix();
         Eigen::Vector3d tmp_T = x.block<3,1>(0,0) + T;
 
         // Calculate cost for rho
@@ -920,10 +937,9 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
         X_2 = tmp_R*X_2_orig.block(0,0,3,X_2_orig.cols()).eval();
 
         double cost = 0.0;
-        Eigen::MatrixXd cost_temp;
-        cost_temp.setZero(1,l_c.cols());
+        Eigen::MatrixXd cost_temp = Eigen::MatrixXd::Zero(1,nlines);
 
-        for(int i = 0; i < l_c.cols();++i){
+        for(int i = 0; i < nlines;++i){
 
           Eigen::Vector3d N = l_c.block<3,1>(0,i).normalized();
           double cost_sq_1 = w(0,i)*N.transpose()*(X_1.block<3,1>(0,i)+tmp_T);
@@ -943,7 +959,8 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
           T = tmp_T;
           cost_old = cost;
           cost_i = cost_temp;
-          double precalc = 1.0-(2.0*rho-1.0)*(2.0*rho-1.0)*(2.0*rho-1.0);
+          double tmp = 2.0*rho-1.0;
+          double precalc = 1.0-tmp*tmp*tmp;
           damping = damping*(0.33333333333 > precalc ? 0.33333333333 : precalc);
           nu = 2;
         }
@@ -961,8 +978,6 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
     }
 
     iter++;
-
-    //std::cout << "R_iter = \n\n" << R << "\n\nT_iter = \n\n" << T <<"\n\n";
   }
 
   Eigen::Matrix4d tf_out;
@@ -995,6 +1010,11 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
 
   }
 
+  std::pair<Eigen::MatrixXd , Eigen::MatrixXd> Alined::establishCorrespondences(const Eigen::Matrix4d &pose, const Eigen::Matrix<double,3,Eigen::Dynamic> &x_c, const Eigen::Matrix<double, 4, Eigen::Dynamic> &X_w){
+
+  }
+
+
   Eigen::Vector3d Alined::cauchyLoss(const double &cost){
 
     double a = loss_scale_*loss_scale_;
@@ -1002,6 +1022,16 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
     // Cost according to the rules by [Triggs, 99]
     // tho, tho', rho''
     return Eigen::Vector3d(a*log(1+cost/a), 1.0/(1.0+cost/a), -1/(a*(1.0+cost/a)*(1.0+cost/a)));
+
+  }
+
+
+  Eigen::Vector3d Alined::noLoss(const double &cost){
+
+
+    // Cost according to the rules by [Triggs, 99]
+    // tho, tho', rho''
+    return Eigen::Vector3d(cost, 1.0, 0.0);
 
   }
 

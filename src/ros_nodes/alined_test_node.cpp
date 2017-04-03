@@ -11,9 +11,9 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "alined_test_node");
   ros::NodeHandle nh;
 
-  const int nlines = 4;
+  const int nlines = 6;
 
-  Alined alined(AL_COMBINED_LINES|AL_NO_REFINE|AL_LEVENBERG_MARQUARDT|AL_CAUCHY_LOSS);
+  Alined alined(AL_LINE_DLT|AL_NO_REFINE|AL_LEVENBERG_MARQUARDT|AL_HUBER_LOSS);
   alined.setLossScale(1.0);
 
   Eigen::MatrixXd x_c;
@@ -148,8 +148,8 @@ int main(int argc, char **argv)
     x_c = projection_matrix*X_w;
     x_c = x_c.eval()+ noise;
     tic("nsec","Iterative");
-    tf_2 = alined.poseFromLinesIterative(tf_2,x_c,X_w);
-    //tf_2 = alined.poseFromLines(x_c,X_w);
+    //tf_2 = alined.poseFromLinesIterative(tf_2,x_c,X_w);
+    tf_2 = alined.poseFromLines(x_c,X_w);
     toc();
     std::cout << "tf(" << i << ") = \n\n"<< tf_2 <<"\n\n" << projection_matrix << "\n\n";
 

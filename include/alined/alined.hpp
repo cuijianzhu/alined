@@ -26,12 +26,13 @@
 
 #define AL_LINE_DLT                 1
 #define AL_COMBINED_LINES           2
-#define AL_LEAST_SQUARES            4
+#define AL_GAUSS_NEWTON             4
 #define AL_LEVENBERG_MARQUARDT      8
 #define AL_NO_REFINE                16
 #define AL_USE_REFINE               32
 #define AL_HUBER_LOSS               64
 #define AL_CAUCHY_LOSS              128
+#define AL_NO_LOSS                  256
 
 #define AL_MIN_LINES_COMBINED 5
 #define AL_MIN_LINES_DLT 6
@@ -41,10 +42,9 @@ class Alined{
 public:
 
   unsigned char method_;
-  unsigned char solver_;
   unsigned char iterative_;
 
-  Alined(unsigned char config);
+  Alined(int32_t config);
   ~Alined();
 
 
@@ -64,7 +64,10 @@ public:
    * \param X_w - 4x(2N) 3D line endpoints
    * \return Pose
    */
-  Eigen::Matrix4d poseFromLinesIterative(Eigen::Matrix4d pose, Eigen::Matrix<double,3,Eigen::Dynamic> x_c, Eigen::Matrix<double,4,Eigen::Dynamic> X_w);
+  Eigen::Matrix4d poseFromLinesIterative(const Eigen::Matrix4d &pose, const Eigen::Matrix<double,3,Eigen::Dynamic> &x_c, const Eigen::Matrix<double,4,Eigen::Dynamic> &X_w);
+
+  std::pair<Eigen::MatrixXd , Eigen::MatrixXd> establishCorrespondences(const Eigen::Matrix4d &pose, const Eigen::Matrix<double,3,Eigen::Dynamic> &x_c, const Eigen::Matrix<double, 4, Eigen::Dynamic> &X_w);
+
 
   /*!
    * \brief Set scale of loss function
@@ -81,6 +84,10 @@ private:
    */
   std::function<Eigen::Vector3d(const double&)> lossFunc_;
 
+  /*!
+   * \brief Wrapping any refinement method
+   */
+  std::function<Eigen::Matrix4d(const Eigen::Matrix4d&,const Eigen::Matrix<double,4, Eigen::Dynamic>&, const Eigen::Matrix<double, 3, Eigen::Dynamic>&, const Eigen::Matrix<double, 1, Eigen::Dynamic>&)> refineFunc_;
 
   /*!
    * \brief Create Plucker Line from two points only
@@ -95,7 +102,7 @@ private:
    * \param m2 - matrix
    * \return Matrix
    */
-  Eigen::MatrixXd kron(Eigen::MatrixXd m1, Eigen::MatrixXd m2);
+  Eigen::MatrixXd kron(const Eigen::MatrixXd &m1, const Eigen::MatrixXd &m2);
 
   /*!
    * \brief Create a skew-symmetric matrix from a vector
@@ -118,7 +125,7 @@ private:
    * \param l_c - 2D line Matrix
    * \return Pose
    */
-  Eigen::Matrix4d refineIteratively(const Eigen::Matrix4d &tf, Eigen::Matrix<double,4, Eigen::Dynamic> X_w, Eigen::Matrix<double, 3, Eigen::Dynamic> l_c, Eigen::Matrix<double, 1, Eigen::Dynamic> w);
+  Eigen::Matrix4d gaussNewton(const Eigen::Matrix4d &tf,const Eigen::Matrix<double,4, Eigen::Dynamic> &X_w, const Eigen::Matrix<double, 3, Eigen::Dynamic> &l_c, const Eigen::Matrix<double, 1, Eigen::Dynamic> &w);
 
   /*!
    * \brief Iteratively find the correct pose using the R_and_T algorithm by Kumar and Hanson 1994
@@ -128,7 +135,7 @@ private:
    * \param l_c - 2D line Matrix
    * \return Pose
    */
-  Eigen::Matrix4d levenbergMarquardt(const Eigen::Matrix4d &tf, Eigen::Matrix<double,4, Eigen::Dynamic> X_w, Eigen::Matrix<double, 3, Eigen::Dynamic> l_c, Eigen::Matrix<double, 1, Eigen::Dynamic> w);
+  Eigen::Matrix4d levenbergMarquardt(const Eigen::Matrix4d &tf, const Eigen::Matrix<double,4, Eigen::Dynamic> &X_w, const Eigen::Matrix<double, 3, Eigen::Dynamic> &l_c, const Eigen::Matrix<double, 1, Eigen::Dynamic> &w);
 
   /*!
    * \brief Calculate the Huber loss function to penalize outliers in the nonlinear optimization
@@ -145,6 +152,13 @@ private:
    * \return weights - weigth to be used in outlier rejection
    */
   Eigen::Vector3d cauchyLoss(const double &cost);
+
+  /*!
+   * \brief Creates an empty loss vector
+   * \param cost
+   * \return
+   */
+  Eigen::Vector3d noLoss(const double &cost);
 
 
 };
