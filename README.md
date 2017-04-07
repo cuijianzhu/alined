@@ -14,7 +14,7 @@ and an Extended Kalman Filter for sensor fusion.
 
 Modern SLAM systems use point feature correspondences to extract camera motion. Points are limiting in a way that they
 contain less structural information about the environment. Not many fully line-based systems have been published.
-This library should be a help to whoever will takle the problem of line-based SLAM or VO.
+This library should be a help to whoever will tackle the problem of line-based SLAM or VO.
 
 ## Installation
 
@@ -46,6 +46,55 @@ Eigen::Matrix4d pose = alined.poseFromLines(x_c,X_w);
 
 // Iterative Approach
 Eigen::Matrix4d tf = alined.poseFromLinesIterative(pose, x_c, X_w);
+```
+
+The Kalman Filter is used as follows:
+
+
+
+```c++
+// Set initial state
+State initial_state;
+initial_state.position() = Eigen::Vector3d(0,0,0);
+initial_state.velocity() = Eigen::Vector3d(0.0,0.0,0.0);
+initial_state.rotation() = Eigen::Quaterniond::Identity();
+initial_state.ang_vel()  = Eigen::Vector3d(0.0,0.0,0.0);
+
+// Set noise variances
+Eigen::Matrix<double,13,1> noise_mm;
+noise_mm << 0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1;
+
+MotionModel* mm = new MotionModel();
+SensorModel* sm = new SensorModel();
+KalmanFilter kalman_filter(some_config);
+
+kalman_filter.setMotionModel(mm);
+kalman_filter.pushSetSensorModel(sm);
+kalman_filter.setCovarianceMMByVector(noise_mm);
+kalman_filter.setNoiseVariances(noise_mm);
+kalman_filter.setInitialState(initial_state);
+
+// Print out initial state
+kalman_filter.printState();
+
+// At update:
+State update_state;
+update_state.position() = Eigen::Vector3d(0,0,0);
+update_state.velocity() = Eigen::Vector3d(1e-9,1e-9,1e-9);
+update_state.rotation() = Eigen::Quaterniond::Identity();
+update_state.ang_vel()  = Eigen::Vector3d(0.0,0.0,0.0);
+
+int64_t time_since_last_update_in_ns = 1000000;
+
+kalman_filter.predict(time_since_last_update_in_ns);
+kalman_filter.update(KF_SENSOR_1, update_state);
+
+// Print updated state
+kalman_filter.printState();
+kalman_filter.printCovariance();
+
+// shutdown
+kalman_filter.exit();
 ```
 
 
