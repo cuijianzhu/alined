@@ -1,12 +1,16 @@
 #pragma once
 
+#include "Eigen/Eigen"
+#include "alined/state.hpp"
+
+
 class SensorModel{
 
 public:
 
-  void updateState();
+  State updateState(const State &state);
 
-  void updateCovariance();
+  Eigen::MatrixXd updateCovariance();
 
   void setCovariance(const Eigen::MatrixXd &cov);
 

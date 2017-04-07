@@ -25,14 +25,21 @@ public:
 
 
   KalmanFilter(int64_t config);
+  ~KalmanFilter();
 
-  void setInitialState(const MotionModel::State& state);
+  void exit();
+
+  void setInitialState(const State& state);
   void setCovarianceMM(const Eigen::MatrixXd& cov_mm);
+  void setCovarianceMMByVector(const Eigen::VectorXd& cov_mm);
+  void setNoiseVariances(const Eigen::VectorXd& noise);
   void setCovarianceSM(const Eigen::MatrixXd& cov_sm, const u_char &sensor_id);
   void setMotionModel(MotionModel* mm);
   void pushSetSensorModel(SensorModel* sm);
   void predict(int64_t dt);
-  void update(const u_char &sensor_id);
+  void update(const u_char &sensor_id, const State &state);
+  void printCovariance();
+  void printState();
 
 protected:
 

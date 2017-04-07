@@ -6,10 +6,10 @@ void SensorModel::setCovariance(const Eigen::MatrixXd &cov){
 
 }
 
-void SensorModel::updateState(){
+State SensorModel::updateState(const State &state){
 
 }
 
-void SensorModel::updateCovariance(){
+Eigen::MatrixXd SensorModel::updateCovariance(){
 
 }
