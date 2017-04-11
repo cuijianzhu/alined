@@ -10,18 +10,18 @@ MotionModel::MotionModel(){
 
 }
 
-State& MotionModel::getState(){
+ekf::State& MotionModel::getState(){
   return state_;
 }
 
-void MotionModel::setState(State state){
+void MotionModel::setState(ekf::State state){
 
   state_ = state;
 
 }
 
 
-void MotionModel::setInitialState(State init_state){
+void MotionModel::setInitialState(ekf::State init_state){
 
   state_ = init_state;
 
@@ -30,7 +30,6 @@ void MotionModel::setInitialState(State init_state){
 void MotionModel::setCovariance(const Eigen::MatrixXd &cov){
 
   covariance_ = cov;
-  std::cout << "Covariance_init:\n\n"<<covariance_<<"\n\n";
 
 }
 
@@ -73,20 +72,20 @@ void MotionModel::constant_velocity_model_propagate_covariance(int64_t dt){
   int64_t dt_2 = 2*dt;
 
   // IMPORTANT: The following order retains correct results without any unnecessary copies
-  covariance_(3,0) = covariance_(3,0) + dt*covariance_(3,3);
-  covariance_(4,1) = covariance_(4,1) + dt*covariance_(4,4);
-  covariance_(5,2) = covariance_(5,2) + dt*covariance_(5,5);
+  covariance_(3,0) = covariance_(3,0) + dt*covariance_(3,3) + dt*noise_(0);
+  covariance_(4,1) = covariance_(4,1) + dt*covariance_(4,4) + dt*noise_(1);
+  covariance_(5,2) = covariance_(5,2) + dt*covariance_(5,5) + dt*noise_(2);
   covariance_(0,0) = covariance_(0,0) + dt_2*covariance_(0,3) + dt_square*covariance_(3,3) + dt_square*noise_(0);
   covariance_(1,1) = covariance_(1,1) + dt_2*covariance_(1,4) + dt_square*covariance_(4,4) + dt_square*noise_(1);
-  covariance_(2,2) = covariance_(2,2) + dt_2*covariance_(2,5)+ dt_square*covariance_(5,5) + dt_square*noise_(2);
-  covariance_(3,3) = covariance_(3,3) + dt_square*noise_(3);
-  covariance_(4,4) = covariance_(4,4) + dt_square*noise_(4);
-  covariance_(5,5) = covariance_(5,5) + dt_square*noise_(5);
+  covariance_(2,2) = covariance_(2,2) + dt_2*covariance_(2,5) + dt_square*covariance_(5,5) + dt_square*noise_(2);
+  covariance_(3,3) = covariance_(3,3) + noise_(3);
+  covariance_(4,4) = covariance_(4,4) + noise_(4);
+  covariance_(5,5) = covariance_(5,5) + noise_(5);
   covariance_(0,3) = covariance_(3,0);
   covariance_(1,4) = covariance_(4,1);
   covariance_(2,5) = covariance_(5,2);
 
-
+/*
   // Orientation Variance:
 
   std::cout << state_.innovation().w() <<" "<< state_.innovation().vec()<<"\n";
@@ -175,14 +174,14 @@ void MotionModel::constant_velocity_model_propagate_covariance(int64_t dt){
   //       Nevertheless it can be seen as noise applied on perturbation impulse quaternions. Normalization will handle the problem, that the
   //       noise moves the quaternion out of the unit ball on S3x3
   covariance_.block<7,7>(6,6).diagonal() = covariance_.block<7,7>(6,6).diagonal().eval() + dt_square*noise_.block<7,1>(6,0);
-
+*/
 }
 
 void MotionModel::constant_velocity_model_propagate_state(int64_t dt){
 
   // T_new = T_old + dt*V_old
   state_.position() = state_.position().eval() + state_.velocity()*dt;
-
+/*
   // Q_new = Q_old * Q{Omega_old*dt}
   double norm_rot_vec = state_.ang_vel().norm();
 
@@ -201,7 +200,7 @@ void MotionModel::constant_velocity_model_propagate_state(int64_t dt){
   // V_new = V_old         no change necessary
 
   // Omega_new = Omega_old no change necessary
-
+*/
 
 
 }

@@ -8,11 +8,11 @@ class SensorModel{
 
 public:
 
-  State updateState(const State &state);
+  ekf::State updateState(ekf::State state,const Eigen::MatrixXd &covariance, ekf::State update_state);
 
   Eigen::MatrixXd updateCovariance();
 
-  void setCovariance(const Eigen::MatrixXd &cov);
+  void setNoiseVariance(const Eigen::MatrixXd &cov);
 
 
 private:
@@ -20,11 +20,10 @@ private:
 
 protected:
 
+  Eigen::MatrixXd kalman_gain_;
   Eigen::MatrixXd covariance_;
-
   Eigen::MatrixXd jacobian_;
-
-
+  Eigen::MatrixXd noiseVar_;
 
 
 };

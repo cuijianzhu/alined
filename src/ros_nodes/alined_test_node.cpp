@@ -134,10 +134,38 @@ int main(int argc, char **argv)
     lines.colors.push_back(color);
   }
 
+  // Kalman Filter
+  ekf::State state;
+  state.position() = tf_2.block<3,1>(0,3);
+  state.velocity() = Eigen::Vector3d(0,0,0);
+ // state.rotation() = Eigen::Quaterniond::Identity();
+ // state.ang_vel() = Eigen::Vector3d(0.0,0.0,0.0);
 
+
+
+  Eigen::Matrix<double,13,1> noise_mm;
+  noise_mm << 0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1;
+
+
+  MotionModel* mm = new MotionModel();
+  SensorModel* sm = new SensorModel();
+  KalmanFilter kalman_filter(KF_CONSTANT_VELOCITY|KF_USE_QUATERNIONS);
+  Eigen::Matrix3d identity;
+  identity <<0.01,0,0,0,0.01,0,0,0,0.01;
+
+  kalman_filter.setMotionModel(mm);
+  kalman_filter.pushSetSensorModel(sm);
+  kalman_filter.setCovarianceMMByVector(noise_mm);
+  kalman_filter.setNoiseVariances(noise_mm);
+  kalman_filter.setNoiseVarianceSM(identity, KF_SENSOR_1);
+
+
+  kalman_filter.setInitialState(state);
+
+  kalman_filter.printState();
 
   ros::Time::init();
-/*
+
   for(int i = 0; i<100; i++){
     line_pub_.publish(lines);
 
@@ -150,8 +178,8 @@ int main(int argc, char **argv)
     x_c = projection_matrix*X_w;
     x_c = x_c.eval()+ noise;
     tic("nsec","Iterative");
-    //tf_2 = alined.poseFromLinesIterative(tf_2,x_c,X_w);
-    tf_2 = alined.poseFromLines(x_c,X_w);
+    tf_2 = alined.poseFromLinesIterative(tf_2,x_c,X_w);
+    //tf_2 = alined.poseFromLines(x_c,X_w);
     toc();
     std::cout << "tf(" << i << ") = \n\n"<< tf_2 <<"\n\n" << projection_matrix << "\n\n";
 
@@ -180,6 +208,17 @@ int main(int argc, char **argv)
 
     posePub.publish(pose_stamped);
 
+    ekf::State update_state;
+    update_state.position() = tf_2.block<3,1>(0,3);
+    //update_state.velocity() = Eigen::Vector3d(1e-9,1e-9,1e-9);
+    //update_state.rotation() = Eigen::Quaterniond::Identity();
+    //update_state.ang_vel() = Eigen::Vector3d(0.0,0.0,0.0);
+
+
+  kalman_filter.predict(100000);
+  kalman_filter.update(KF_SENSOR_1, update_state);
+  kalman_filter.printState();
+
 
     geometry_msgs::PoseStamped pose_stamped_2;
     pose_stamped_2.header.frame_id = "world";
@@ -207,49 +246,16 @@ int main(int argc, char **argv)
     ros::Duration(0.05).sleep();
 
   }
+  kalman_filter.printCovariance();
 
   double err_rot = acos((tf_2.block<3,3>(0,0).transpose()*projection_matrix.block<3,3>(0,0)).trace()/2-0.5);
   double err_trans = (tf_2.block<3,1>(0,3)-projection_matrix.block<3,1>(0,3)).norm();
   double noise_level = (noise.array()/x_c.array()).sum()/noise.cols();
   std::cout << "Lines = " << x_c.cols()/2 << "  Rotational Error = " << err_rot*180/3.14158 << "  Translation error = "<<  err_trans << "  Relative Noise = "<<noise_level<<"\n";
-*/
+
   std::cout << "Test 3: Kalman Filter:\n\n";
 
-  // Kalman Filter
-  State state;
-  state.position() = Eigen::Vector3d(0,0,0);
-  state.velocity() = Eigen::Vector3d(1e-9,1e-9,1e-9);
-  state.rotation() = Eigen::Quaterniond::Identity();
-  state.ang_vel() = Eigen::Vector3d(0.0,0.0,0.0);
 
-  State update_state;
-  update_state.position() = Eigen::Vector3d(0,0,0);
-  update_state.velocity() = Eigen::Vector3d(1e-9,1e-9,1e-9);
-  update_state.rotation() = Eigen::Quaterniond::Identity();
-  update_state.ang_vel() = Eigen::Vector3d(0.0,0.0,0.0);
-
-  Eigen::Matrix<double,13,1> noise_mm;
-  noise_mm << 0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1;
-
-
-  MotionModel* mm = new MotionModel();
-  SensorModel* sm = new SensorModel();
-  KalmanFilter kalman_filter(1);
-
-  kalman_filter.setMotionModel(mm);
-  kalman_filter.pushSetSensorModel(sm);
-  kalman_filter.setCovarianceMMByVector(noise_mm);
-  kalman_filter.setNoiseVariances(noise_mm);
-
-
-  kalman_filter.setInitialState(state);
-
-  kalman_filter.printState();
-
-  kalman_filter.predict(1013164);
-  kalman_filter.update(KF_SENSOR_1, update_state);
-  kalman_filter.printState();
-  kalman_filter.printCovariance();
 
   kalman_filter.exit();
 

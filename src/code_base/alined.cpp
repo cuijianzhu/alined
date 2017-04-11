@@ -900,7 +900,7 @@ Eigen::Matrix<double,6,Eigen::Dynamic> Alined::createPluckerLines(const Eigen::M
 
     if(iter == 0){
       // According to "DAMPING PARAMETER IN MARQUARDT’S METHOD", by H.Nielsen
-      damping = (A.diagonal().maxCoeff())*0.01;
+      damping = (A.diagonal().maxCoeff())*0.05;
     }
 
 

@@ -1,6 +1,7 @@
 #pragma once
 #include "Eigen/Eigen"
 
+namespace ekf{
 struct State{
 protected:
   Eigen::Vector3d position_;
@@ -21,3 +22,4 @@ public:
   double& z(){return position_(2,0);}
 
 };
+}

@@ -12,10 +12,10 @@ public:
   //MotionModel(const MotionModel&) = delete;
 
 
-  State& getState();
-  void setState(State state);
+  ekf::State& getState();
+  void setState(ekf::State state);
 
-  void setInitialState(State init_state);
+  void setInitialState(ekf::State init_state);
   void setCovariance(const Eigen::MatrixXd &cov);
   Eigen::MatrixXd getCovariance();
   void setNoiseVariances(const Eigen::VectorXd& noise);
@@ -39,7 +39,7 @@ protected:
  std::function<void(int64_t dt)> f;
  std::function<void(int64_t dt)> P;
 
- State state_, init_state_;
+ ekf::State state_, init_state_;
 
 
 };

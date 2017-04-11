@@ -1,11 +1,14 @@
-# ALineD: Augmented Line-Based DLT
+# ALineD: Algorithms for Line-Based Data Correspondences
 
 This library is based on the paper "Pose Estimation from Line Correspondence using Direct Linear Transform" by Pribyl,B. 2016,
 the R_and_T algorithm as shown in "Robust Methods for Estimating Pose and a Sensitivity Analysis" by Kumar,R.,Hanson,A.R.,1994,
 loss functions as explained in "Bundle Adjustment - A modern Synthesis", by Triggs,B., 1999,
 and the paper "A Brief Description of the Levenberg-Marquardt Algorithm Implemened by levmar", by Manolis,I., Lourakis, A., 2005.
 It consists of a fully line-based DLT algorithm as described in the above paper by Pribyl, a modification of the R_and_T algorithm
-and an Extended Kalman Filter for sensor fusion.
+and an Extended Kalman Filter for sensor fusion. The Kalman Filter at the moment contains a constant velocity model, but is customizeable.
+It contains elements discussed in "A Primer on the Differential Calculus of 3D Orientations", by Bloesch et al., 2016, "Practical
+Parametrization of Rotations Using the Exponential Map  ", by Grassia, F., 1998 and "Quaternion kinematics for the error-state KF",
+by Solà, J., 2016.
 
 ![alt text](https://github.com/AndreaLampart/alined/blob/master/img/alined.png "Pose from lines")
 
@@ -15,6 +18,8 @@ and an Extended Kalman Filter for sensor fusion.
 Modern SLAM systems use point feature correspondences to extract camera motion. Points are limiting in a way that they
 contain less structural information about the environment. Not many fully line-based systems have been published.
 This library should be a help to whoever will tackle the problem of line-based SLAM or VO.
+Please be aware that this software is still under development and it might or might not be discontinued.
+No warranty for further development is given.
 
 ## Installation
 
@@ -66,7 +71,7 @@ noise_mm << 0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1;
 
 MotionModel* mm = new MotionModel();
 SensorModel* sm = new SensorModel();
-KalmanFilter kalman_filter(some_config);
+KalmanFilter kalman_filter(KF_CONSTANT_VELOCITY | KF_USE_QUATERNIONS);
 
 kalman_filter.setMotionModel(mm);
 kalman_filter.pushSetSensorModel(sm);
