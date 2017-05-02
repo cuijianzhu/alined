@@ -38,8 +38,6 @@ add_executable(alined_test
   ${${PROJECT_NAME}_CODE_BASE})
 target_link_libraries(alined_test ${catkin_LIBRARIES})
 
-
-
 add_library(${PROJECT_NAME} STATIC
   ${${PROJECT_NAME}_CODE_BASE}
 )

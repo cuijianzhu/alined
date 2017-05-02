@@ -2,6 +2,10 @@
 #include "Eigen/Eigen"
 
 namespace ekf{
+
+/*!
+ * \brief state TODO: create abstraction
+ */
 struct State{
 protected:
   Eigen::Vector3d position_;

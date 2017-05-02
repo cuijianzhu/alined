@@ -33,6 +33,8 @@ ekf::State SensorModel::updateState(ekf::State state,const Eigen::MatrixXd &cova
   //std::cout<<"R:\n\n" << noiseVar_ <<"\n\nP:\n\n"<<covariance_.block<3,3>(0,0)<<"\n\n";
   // Orientation:
 
+  //TODO: orientation update...
+
 
   return updated;
 }
@@ -41,10 +43,10 @@ Eigen::MatrixXd SensorModel::updateCovariance(){
 
   // Position update
   Eigen::MatrixXd cov_P = covariance_;
-  //std::cout <<"covp:\n\n"<<cov_P<<"\n";
+
   Eigen::Matrix<double,6,3> i_minus_k = -kalman_gain_;
   i_minus_k.block<3,3>(0,0).diagonal() = i_minus_k.block<3,3>(0,0).eval().diagonal() + Eigen::Vector3d(1,1,1);
-  //std::cout <<"i_k:\n\n"<<i_minus_k<<"\n\n"<<"Kalman\n\n"<<-kalman_gain_<<"\n\n";
+
   cov_P.block<3,3>(0,0) = i_minus_k.block<3,3>(0,0)*covariance_.block<3,3>(0,0);
   cov_P.block<3,3>(0,3) = i_minus_k.block<3,3>(0,0)*covariance_.block<3,3>(0,3);
   cov_P.block<3,3>(3,0) = i_minus_k.block<3,3>(3,0)*covariance_.block<3,3>(0,0) + covariance_.block<3,3>(3,0);

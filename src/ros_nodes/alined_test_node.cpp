@@ -207,7 +207,7 @@ int main(int argc, char **argv)
     pose_stamped.pose.orientation = quat;
 
     posePub.publish(pose_stamped);
-
+ tic("nsec","Kalman");
     ekf::State update_state;
     update_state.position() = tf_2.block<3,1>(0,3);
     //update_state.velocity() = Eigen::Vector3d(1e-9,1e-9,1e-9);
@@ -217,6 +217,7 @@ int main(int argc, char **argv)
 
   kalman_filter.predict(100000);
   kalman_filter.update(KF_SENSOR_1, update_state);
+  toc();
   kalman_filter.printState();
 
 

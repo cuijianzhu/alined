@@ -29,7 +29,6 @@ The software is self-contained and uses no additional dependencies except Eigen3
 git clone directory-name.git
 ```
 
-
 ## How to use
 
 The library can be included into any project and can be run from within a ros node. The following will calculate the camera pose:

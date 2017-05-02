@@ -106,7 +106,7 @@ void MotionModel::constant_velocity_model_propagate_covariance(int64_t dt){
   // The first part is [q]_skew_Left the left skew matrix of the old quaternion
   // The second part are the partial derivatives of the innovation quaternion, which comes from
   // the famous Rodriguez formula (It's strongly recommended to use a symbolic solver for this task)
-  // The interested reader (who might be spanish and go by the name of Ignacio) is referred to:
+  // The interested reader is referred to:
   // http://www.cs.cmu.edu/afs/cs.cmu.edu/user/spiff/www/moedit99/expmap.pdf
 
   double_t dt_half = 0.5*dt;
